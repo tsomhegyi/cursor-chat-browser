@@ -53,9 +53,9 @@ function extractChatIdFromCodeBlockDiffKey(key: string): string | null {
 
 function formatToolAction(action: any): string {
   if (!action) return ''
-  
+
   let result = ''
-  
+
   // Handle code changes
   if (action.newModelDiffWrtV0 && action.newModelDiffWrtV0.length > 0) {
     for (const diff of action.newModelDiffWrtV0) {
@@ -64,31 +64,31 @@ function formatToolAction(action: any): string {
       }
     }
   }
-  
+
   // Handle file operations
   if (action.filePath) {
     result += `\n\n**File:** ${action.filePath}`
   }
-  
+
   // Handle terminal commands
   if (action.command) {
     result += `\n\n**Command:** \`${action.command}\``
   }
-  
+
   // Handle search results
   if (action.searchResults) {
     result += `\n\n**Search Results:**\n${action.searchResults}`
   }
-  
+
   // Handle web search results
   if (action.webResults) {
     result += `\n\n**Web Search:**\n${action.webResults}`
   }
-  
+
   // Handle tool actions with specific types
   if (action.toolName) {
     result += `\n\n**Tool Action:** ${action.toolName}`
-    
+
     if (action.parameters) {
       try {
         const params = typeof action.parameters === 'string' ? JSON.parse(action.parameters) : action.parameters
@@ -108,7 +108,7 @@ function formatToolAction(action: any): string {
         console.error('Error parsing tool parameters:', error)
       }
     }
-    
+
     if (action.result) {
       try {
         const resultData = typeof action.result === 'string' ? JSON.parse(action.result) : action.result
@@ -141,12 +141,12 @@ function formatToolAction(action: any): string {
       }
     }
   }
-  
+
   // Handle actions taken
   if (action.actionsTaken && action.actionsTaken.length > 0) {
     result += `\n\n**Actions Taken:** ${action.actionsTaken.join(', ')}`
   }
-  
+
   // Handle files modified
   if (action.filesModified && action.filesModified.length > 0) {
     result += `\n\n**Files Modified:**`
@@ -154,17 +154,17 @@ function formatToolAction(action: any): string {
       result += `\n- ${file}`
     }
   }
-  
+
   // Handle git status
   if (action.gitStatus) {
     result += `\n\n**Git Status:**\n\`\`\`\n${action.gitStatus}\n\`\`\``
   }
-  
+
   // Handle directory listings
   if (action.directoryListed) {
     result += `\n\n**Directory Listed:** ${action.directoryListed}`
   }
-  
+
   // Handle web search results
   if (action.webSearchResults) {
     result += `\n\n**Web Search Results:**`
@@ -174,18 +174,126 @@ function formatToolAction(action: any): string {
       }
     }
   }
-  
+
+  return result
+}
+
+function formatToolFormerData(toolFormerData: any): string {
+  if (!toolFormerData || (!toolFormerData.name && !toolFormerData.toolCallId)) return ''
+
+  let result = ''
+  const toolName = toolFormerData.name || 'unknown_tool'
+  const status = toolFormerData.status || 'unknown'
+
+  // Determine if this is an MCP tool call
+  const isMcp = toolName.startsWith('mcp') || toolName.startsWith('user-') ||
+    toolName === 'CallMcpTool' || toolName === 'FetchMcpResource' ||
+    toolName === 'list_mcp_resources' || toolName === 'fetch_mcp_resource'
+
+  const toolLabel = isMcp ? '🔌 MCP Tool Call' : '🔧 Tool Call'
+  result += `\n\n**${toolLabel}: \`${toolName}\`** (${status})`
+
+  if (toolFormerData.toolCallId) {
+    result += `\n<sub>Call ID: ${toolFormerData.toolCallId}</sub>`
+  }
+
+  // Format arguments
+  if (toolFormerData.rawArgs) {
+    try {
+      const args = typeof toolFormerData.rawArgs === 'string'
+        ? JSON.parse(toolFormerData.rawArgs)
+        : toolFormerData.rawArgs
+      if (Object.keys(args).length > 0) {
+        result += `\n\n**Arguments:**\n\`\`\`json\n${JSON.stringify(args, null, 2)}\n\`\`\``
+      }
+    } catch {
+      // rawArgs might not be valid JSON, show as-is
+      if (toolFormerData.rawArgs.trim()) {
+        result += `\n\n**Arguments:**\n\`\`\`\n${toolFormerData.rawArgs}\n\`\`\``
+      }
+    }
+  } else if (toolFormerData.params) {
+    try {
+      const params = typeof toolFormerData.params === 'string'
+        ? JSON.parse(toolFormerData.params)
+        : toolFormerData.params
+      if (Object.keys(params).length > 0) {
+        result += `\n\n**Parameters:**\n\`\`\`json\n${JSON.stringify(params, null, 2)}\n\`\`\``
+      }
+    } catch {
+      if (String(toolFormerData.params).trim()) {
+        result += `\n\n**Parameters:**\n\`\`\`\n${toolFormerData.params}\n\`\`\``
+      }
+    }
+  }
+
+  // Format result
+  if (toolFormerData.result) {
+    try {
+      const resultData = typeof toolFormerData.result === 'string'
+        ? JSON.parse(toolFormerData.result)
+        : toolFormerData.result
+      const resultStr = JSON.stringify(resultData, null, 2)
+      // Truncate very long results to keep the UI manageable
+      const maxLen = 5000
+      const truncated = resultStr.length > maxLen
+        ? resultStr.substring(0, maxLen) + `\n... (truncated, ${resultStr.length} chars total)`
+        : resultStr
+      result += `\n\n**Result:**\n\`\`\`json\n${truncated}\n\`\`\``
+    } catch {
+      const resultStr = String(toolFormerData.result)
+      const maxLen = 5000
+      const truncated = resultStr.length > maxLen
+        ? resultStr.substring(0, maxLen) + `\n... (truncated, ${resultStr.length} chars total)`
+        : resultStr
+      result += `\n\n**Result:**\n\`\`\`\n${truncated}\n\`\`\``
+    }
+  }
+
+  // Additional data (error info, etc.)
+  if (toolFormerData.additionalData && Object.keys(toolFormerData.additionalData).length > 0) {
+    const addData = toolFormerData.additionalData
+    if (addData.status === 'error' || addData.error) {
+      result += `\n\n**Error:** ${addData.error || addData.status || 'unknown error'}`
+    }
+  }
+
+  return result
+}
+
+function formatToolResults(toolResults: any[]): string {
+  if (!toolResults || !Array.isArray(toolResults) || toolResults.length === 0) return ''
+
+  let result = ''
+  for (const tr of toolResults) {
+    if (!tr) continue
+    const toolName = tr.toolName || tr.name || 'unknown_tool'
+    result += `\n\n**🔧 Tool Result: \`${toolName}\`**`
+    if (tr.result) {
+      try {
+        const parsed = typeof tr.result === 'string' ? JSON.parse(tr.result) : tr.result
+        const str = JSON.stringify(parsed, null, 2)
+        const maxLen = 3000
+        const truncated = str.length > maxLen
+          ? str.substring(0, maxLen) + `\n... (truncated)`
+          : str
+        result += `\n\`\`\`json\n${truncated}\n\`\`\``
+      } catch {
+        result += `\n\`\`\`\n${String(tr.result).substring(0, 3000)}\n\`\`\``
+      }
+    }
+  }
   return result
 }
 
 function extractTextFromBubble(bubble: any): string {
   let text = ''
-  
+
   // Try to get text from the text field first
   if (bubble.text && bubble.text.trim()) {
     text = bubble.text
   }
-  
+
   // If no text, try to extract from richText
   if (!text && bubble.richText) {
     try {
@@ -197,7 +305,7 @@ function extractTextFromBubble(bubble: any): string {
       console.error('Error parsing richText:', error)
     }
   }
-  
+
   // If it's an AI message with code blocks, include them
   if (bubble.codeBlocks && Array.isArray(bubble.codeBlocks)) {
     for (const codeBlock of bubble.codeBlocks) {
@@ -206,13 +314,23 @@ function extractTextFromBubble(bubble: any): string {
       }
     }
   }
-  
+
+  // Include MCP / tool call data from toolFormerData
+  if (bubble.toolFormerData && typeof bubble.toolFormerData === 'object') {
+    text += formatToolFormerData(bubble.toolFormerData)
+  }
+
+  // Include toolResults array if present
+  if (bubble.toolResults && Array.isArray(bubble.toolResults) && bubble.toolResults.length > 0) {
+    text += formatToolResults(bubble.toolResults)
+  }
+
   return text
 }
 
 function extractTextFromRichText(children: any[]): string {
   let text = ''
-  
+
   for (const child of children) {
     if (child.type === 'text' && child.text) {
       text += child.text
@@ -224,13 +342,13 @@ function extractTextFromRichText(children: any[]): string {
       text += extractTextFromRichText(child.children)
     }
   }
-  
+
   return text
 }
 
 // Unified function to determine which project a conversation belongs to (same as in workspaces route)
 function determineProjectForConversation(
-  composerData: any, 
+  composerData: any,
   composerId: string,
   projectLayoutsMap: Record<string, string[]>,
   projectNameToWorkspaceId: Record<string, string>,
@@ -245,7 +363,7 @@ function determineProjectForConversation(
       return workspaceId
     }
   }
-  
+
   // If no project found from projectLayouts, try file-based detection (fallback)
   // Check newlyCreatedFiles first
   if (composerData.newlyCreatedFiles && composerData.newlyCreatedFiles.length > 0) {
@@ -256,7 +374,7 @@ function determineProjectForConversation(
       }
     }
   }
-  
+
   // Check codeBlockData
   if (composerData.codeBlockData) {
     for (const filePath of Object.keys(composerData.codeBlockData)) {
@@ -265,13 +383,13 @@ function determineProjectForConversation(
       if (projectId) return projectId
     }
   }
-  
+
   // Check if this conversation has any file references in bubbles
   const conversationHeaders = composerData.fullConversationHeadersOnly || []
   for (const header of conversationHeaders) {
     const bubbleId = header.bubbleId
     const bubble = bubbleMap[bubbleId]
-    
+
     if (bubble) {
       // Check relevantFiles
       if (bubble.relevantFiles && Array.isArray(bubble.relevantFiles) && bubble.relevantFiles.length > 0) {
@@ -282,7 +400,7 @@ function determineProjectForConversation(
           }
         }
       }
-      
+
       // Check attachedFileCodeChunksUris
       if (bubble.attachedFileCodeChunksUris && Array.isArray(bubble.attachedFileCodeChunksUris) && bubble.attachedFileCodeChunksUris.length > 0) {
         for (const uri of bubble.attachedFileCodeChunksUris) {
@@ -292,7 +410,7 @@ function determineProjectForConversation(
           }
         }
       }
-      
+
       // Check context.fileSelections
       if (bubble.context && bubble.context.fileSelections && Array.isArray(bubble.context.fileSelections) && bubble.context.fileSelections.length > 0) {
         for (const fileSelection of bubble.context.fileSelections) {
@@ -304,14 +422,14 @@ function determineProjectForConversation(
       }
     }
   }
-  
+
   return null
 }
 
 function getProjectFromFilePath(filePath: string, workspaceEntries: Array<{name: string, workspaceJsonPath: string}>): string | null {
   // Normalize the file path
   const normalizedPath = filePath.replace(/^\/Users\/evaran\//, '')
-  
+
   for (const entry of workspaceEntries) {
     try {
       const workspaceData = JSON.parse(readFileSync(entry.workspaceJsonPath, 'utf-8'))
@@ -330,7 +448,7 @@ function getProjectFromFilePath(filePath: string, workspaceEntries: Array<{name:
 
 function createProjectNameToWorkspaceIdMap(workspaceEntries: Array<{name: string, workspaceJsonPath: string}>): Record<string, string> {
   const projectNameToWorkspaceId: Record<string, string> = {}
-  
+
   for (const entry of workspaceEntries) {
     try {
       const workspaceData = JSON.parse(readFileSync(entry.workspaceJsonPath, 'utf-8'))
@@ -345,7 +463,7 @@ function createProjectNameToWorkspaceIdMap(workspaceEntries: Array<{name: string
       console.error(`Error reading workspace ${entry.name}:`, error)
     }
   }
-  
+
   return projectNameToWorkspaceId
 }
 
@@ -354,7 +472,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   let globalDb: any = null
-  
+
   try {
     const workspacePath = resolveWorkspacePath()
     const globalDbPath = path.join(workspacePath, '..', 'globalStorage', 'state.vscdb')
@@ -364,7 +482,7 @@ export async function GET(
     // Get all workspace entries for project mapping
     const entries = await fs.readdir(workspacePath, { withFileTypes: true })
     const workspaceEntries: Array<{name: string, workspaceJsonPath: string}> = []
-    
+
     for (const entry of entries) {
       if (entry.isDirectory()) {
         const workspaceJsonPath = path.join(workspacePath, entry.name, 'workspace.json')
@@ -373,17 +491,17 @@ export async function GET(
         }
       }
     }
-    
+
     // Create project name to workspace ID mapping
     const projectNameToWorkspaceId = createProjectNameToWorkspaceIdMap(workspaceEntries)
 
     let bubbleMap: Record<string, any> = {}
     let codeBlockDiffMap: Record<string, any[]> = {}
     let messageRequestContextMap: Record<string, any[]> = {}
-    
+
     if (existsSync(globalDbPath)) {
       globalDb = new Database(globalDbPath, { readonly: true })
-      
+
       // Get all bubbleId entries for the actual message content
       const bubbleRows = globalDb.prepare("SELECT key, value FROM cursorDiskKV WHERE key LIKE 'bubbleId:%'").all()
       for (const rowUntyped of bubbleRows) {
@@ -398,7 +516,7 @@ export async function GET(
           console.error('Error parsing bubble:', parseError)
         }
       }
-      
+
       // codeBlockDiff
       const codeBlockDiffRows = globalDb.prepare("SELECT key, value FROM cursorDiskKV WHERE key LIKE 'codeBlockDiff:%'").all()
       for (const rowUntyped of codeBlockDiffRows) {
@@ -416,7 +534,7 @@ export async function GET(
           console.error('Error parsing codeBlockDiff:', parseError)
         }
       }
-      
+
       // messageRequestContext
       const messageRequestContextRows = globalDb.prepare("SELECT key, value FROM cursorDiskKV WHERE key LIKE 'messageRequestContext:%'").all()
       for (const rowUntyped of messageRequestContextRows) {
@@ -437,7 +555,7 @@ export async function GET(
           }
         }
       }
-      
+
       // Create a map of composerId -> projectLayouts for efficient lookup
       const projectLayoutsMap: Record<string, string[]> = {}
       for (const rowUntyped of messageRequestContextRows) {
@@ -472,15 +590,15 @@ export async function GET(
 
       // Get all composerData entries that have conversation data
       const composerRows = globalDb.prepare("SELECT key, value FROM cursorDiskKV WHERE key LIKE 'composerData:%' AND value LIKE '%fullConversationHeadersOnly%' AND value NOT LIKE '%fullConversationHeadersOnly\":[]%'").all()
-      
+
       // Process each composerData entry and check if it belongs to this workspace
       for (const rowUntyped of composerRows) {
         const row = rowUntyped as { key: string, value: string }
         const composerId = row.key.split(':')[1]
-        
+
         try {
           const composerData = JSON.parse(row.value)
-          
+
           // Determine which project this conversation belongs to using unified logic
           const projectId = determineProjectForConversation(
             composerData,
@@ -490,31 +608,31 @@ export async function GET(
             workspaceEntries,
             bubbleMap
           )
-          
+
           // Only process conversations that belong to this specific workspace
           if (projectId !== params.id) {
             continue
           }
-          
+
           console.log(`Processing workspace conversation ${composerId}: ${composerData.name || 'Untitled'}`)
-          
+
           // Get the conversation headers to understand the structure
           const conversationHeaders = composerData.fullConversationHeadersOnly || []
-          
+
           // Build the conversation from the headers and bubble content
           const bubbles: ChatBubble[] = []
           for (const header of conversationHeaders) {
             const bubbleId = header.bubbleId
             const bubble = bubbleMap ? bubbleMap[bubbleId] : null
-            
+
             if (bubble) {
               // Determine if this is a user or AI message
               const isUser = header.type === 1
               const messageType = isUser ? 'user' : 'ai'
-              
+
               // Extract the actual text content
               const text = extractTextFromBubble(bubble)
-              
+
               // Add messageRequestContext data if available
               let contextText = ''
               const messageContexts = messageRequestContextMap[composerId] || []
@@ -524,7 +642,7 @@ export async function GET(
                   if (context.gitStatusRaw) {
                     contextText += `\n\n**Git Status:**\n\`\`\`\n${context.gitStatusRaw}\n\`\`\``
                   }
-                  
+
                   // Add terminal files if available
                   if (context.terminalFiles && context.terminalFiles.length > 0) {
                     contextText += `\n\n**Terminal Files:**`
@@ -532,7 +650,7 @@ export async function GET(
                       contextText += `\n- ${file.path}`
                     }
                   }
-                  
+
                   // Add attached folders if available
                   if (context.attachedFoldersListDirResults && context.attachedFoldersListDirResults.length > 0) {
                     contextText += `\n\n**Attached Folders:**`
@@ -545,7 +663,7 @@ export async function GET(
                       }
                     }
                   }
-                  
+
                   // Add cursor rules if available
                   if (context.cursorRules && context.cursorRules.length > 0) {
                     contextText += `\n\n**Cursor Rules:**`
@@ -553,7 +671,7 @@ export async function GET(
                       contextText += `\n- ${rule.name || rule.description || 'Rule'}`
                     }
                   }
-                  
+
                   // Add summarized composers if available
                   if (context.summarizedComposers && context.summarizedComposers.length > 0) {
                     contextText += `\n\n**Related Conversations:**`
@@ -563,10 +681,10 @@ export async function GET(
                   }
                 }
               }
-              
+
               // Combine text and context
               const fullText = text + contextText
-              
+
               if (fullText.trim()) {
                 bubbles.push({
                   type: messageType,
@@ -576,7 +694,7 @@ export async function GET(
               }
             }
           }
-          
+
           if (bubbles.length > 0) {
             // Generate a title from the composer name or first message
             let title = composerData.name || `Conversation ${composerId.slice(0, 8)}`
@@ -590,7 +708,7 @@ export async function GET(
                 }
               }
             }
-            
+
             // Get codeBlockDiffs for this conversation and add them as separate bubbles
             const codeBlockDiffs = codeBlockDiffMap[composerId] || []
             for (const diff of codeBlockDiffs) {
@@ -603,10 +721,10 @@ export async function GET(
                 })
               }
             }
-            
+
             // Sort bubbles by timestamp to ensure proper order
             bubbles.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
-            
+
             response.tabs.push({
               id: composerId,
               title,
@@ -619,12 +737,12 @@ export async function GET(
               codeBlockDiffs: codeBlockDiffs
             })
           }
-          
+
         } catch (parseError) {
           console.error(`Error parsing composer data for ${composerId}:`, parseError)
         }
       }
-      
+
       console.log(`Returning ${response.tabs.length} conversations for workspace ${params.id}`)
     } else {
       return NextResponse.json({ error: 'Global storage not found' }, { status: 404 })
@@ -633,7 +751,7 @@ export async function GET(
     if (globalDb) {
       globalDb.close()
     }
-    
+
     return NextResponse.json(response)
   } catch (error) {
     console.error('Failed to get workspace tabs:', error)

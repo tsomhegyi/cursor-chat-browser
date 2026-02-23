@@ -4,21 +4,21 @@ import { marked } from 'marked'
 export function convertChatToMarkdown(tab: ChatTab): string {
   let markdown = `# ${tab.title || `Chat ${tab.id}`}\n\n`
   markdown += `_Created: ${new Date(tab.timestamp).toLocaleString()}_\n\n---\n\n`
-  
+
   tab.bubbles.forEach((bubble) => {
     // Add speaker
     markdown += `### ${bubble.type === 'ai' ? 'AI' : 'User'}\n\n`
-    
+
     // Add message text or placeholder for empty AI messages
     if (bubble.text) {
       markdown += bubble.text + '\n\n'
     } else if (bubble.type === 'ai') {
-      markdown += '_[TERMINAL OUTPUT NOT INCLUDED]_\n\n'
+      markdown += '_[No text content — may be a tool-only interaction]_\n\n'
     }
-    
+
     markdown += '---\n\n'
   })
-  
+
   return markdown
 }
 
@@ -38,7 +38,7 @@ export function downloadMarkdown(tab: ChatTab) {
 export function downloadHTML(tab: ChatTab) {
   const markdown = convertChatToMarkdown(tab)
   const htmlContent = marked(markdown)
-  
+
   const html = `
     <!DOCTYPE html>
     <html>
@@ -107,7 +107,7 @@ export function downloadHTML(tab: ChatTab) {
     </body>
   </html>
   `
-  
+
   const blob = new Blob([html], { type: 'text/html' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')

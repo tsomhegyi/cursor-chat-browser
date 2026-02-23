@@ -110,3 +110,20 @@ export interface MarkdownCodeProps {
   className?: string;
   children: React.ReactNode;
 }
+
+// Tool call data stored by Cursor in bubbleId entries (toolFormerData field)
+export interface ToolFormerData {
+  tool?: number;             // Numeric tool type ID
+  toolCallId?: string;       // Unique call identifier
+  toolIndex?: number;        // Index within a multi-tool call
+  modelCallId?: string;      // LLM call that generated this tool use
+  status?: string;           // 'completed', 'error', etc.
+  name?: string;             // Full tool name (e.g. 'mcp-confluence-mcp-user-confluence-mcp-confluence_search')
+  rawArgs?: string;          // JSON string of arguments passed to the tool
+  params?: string;           // Parsed parameters (JSON string)
+  result?: string;           // JSON string of the tool's response
+  additionalData?: {
+    status?: string;
+    error?: string;
+  };
+}
